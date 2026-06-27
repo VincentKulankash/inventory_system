@@ -154,6 +154,201 @@ def reports():
         ]
     })
 
+@app.route('/api/payment-methods', methods=['GET', 'POST'])
+def get_payment_methods():
+    if request.method == 'POST':
+        data = request.get_json()
+        method = PaymentMethod(method_name=data['method_name'])
+        db.session.add(method)
+        db.session.commit()
+        return jsonify(method.to_dict()), 201
+
+    methods = PaymentMethod.query.all()
+    return jsonify([m.to_dict() for m in methods])
+
+
+@app.route('/api/paybills', methods=['GET', 'POST'])
+def paybills():
+    if request.method == 'POST':
+        data = request.get_json()
+        new_paybill = Paybill(
+            paybill_name=data['paybill_name'],
+            paybill_number=data['paybill_number'],
+            payment_method_id=data['payment_method_id']
+        )
+        db.session.add(new_paybill)
+        db.session.commit()
+        return jsonify(new_paybill.to_dict()), 201
+
+    paybills = Paybill.query.all()
+    return jsonify([p.to_dict() for p in paybills])
+
+@app.route('/api/reports/daily', methods=['GET'])
+def daily_report():
+    from datetime import date
+    today = date.today()
+
+    sales_today = Sale.query.filter(
+        func.date(Sale.sale_date) == today
+    ).all()
+
+    totals = db.session.query(
+        func.sum(Sale.total_revenue).label('total_revenue'),
+        func.sum(Sale.total_cost).label('total_cost'),
+        func.sum(Sale.profit).label('total_profit'),
+        func.sum(Sale.quantity_sold).label('total_items_sold')
+    ).filter(func.date(Sale.sale_date) == today).first()
+
+    payment_breakdown = db.session.query(
+        PaymentMethod.method_name,
+        func.sum(Sale.total_revenue).label('revenue'),
+        func.sum(Sale.profit).label('profit'),
+        func.count(Sale.sale_id).label('transaction_count')
+    ).join(Sale, PaymentMethod.payment_method_id == Sale.payment_method_id)\
+     .filter(func.date(Sale.sale_date) == today)\
+     .group_by(PaymentMethod.method_name).all()
+
+    return jsonify({
+        'date': today.isoformat(),
+        'summary': {
+            'total_revenue': float(totals.total_revenue or 0),
+            'total_cost': float(totals.total_cost or 0),
+            'total_profit': float(totals.total_profit or 0),
+            'total_items_sold': int(totals.total_items_sold or 0)
+        },
+        'sales': [s.to_dict() for s in sales_today],
+        'payment_breakdown': [
+            {
+                'method': m,
+                'revenue': float(r),
+                'profit': float(p),
+                'transactions': int(c)
+            }
+            for m, r, p, c in payment_breakdown
+        ]
+    })
+
+@app.route('/api/reports/monthly', methods=['GET'])
+def monthly_report():
+    year = request.args.get('year', type=int)
+    month = request.args.get('month', type=int)
+
+    if not year or not month:
+        return jsonify({'error': 'year and month are required'}), 400
+
+    totals = db.session.query(
+        func.sum(Sale.total_revenue).label('total_revenue'),
+        func.sum(Sale.total_cost).label('total_cost'),
+        func.sum(Sale.profit).label('total_profit'),
+        func.sum(Sale.quantity_sold).label('total_items_sold')
+    ).filter(
+        func.extract('year', Sale.sale_date) == year,
+        func.extract('month', Sale.sale_date) == month
+    ).first()
+
+    daily_breakdown = db.session.query(
+        func.date(Sale.sale_date).label('day'),
+        func.sum(Sale.total_revenue).label('revenue'),
+        func.sum(Sale.profit).label('profit'),
+        func.sum(Sale.quantity_sold).label('items_sold')
+    ).filter(
+        func.extract('year', Sale.sale_date) == year,
+        func.extract('month', Sale.sale_date) == month
+    ).group_by(func.date(Sale.sale_date))\
+     .order_by(func.date(Sale.sale_date)).all()
+
+    payment_breakdown = db.session.query(
+        PaymentMethod.method_name,
+        func.sum(Sale.total_revenue).label('revenue'),
+        func.sum(Sale.profit).label('profit'),
+        func.count(Sale.sale_id).label('transaction_count')
+    ).join(Sale, PaymentMethod.payment_method_id == Sale.payment_method_id)\
+     .filter(
+        func.extract('year', Sale.sale_date) == year,
+        func.extract('month', Sale.sale_date) == month
+    ).group_by(PaymentMethod.method_name).all()
+
+    return jsonify({
+        'year': year,
+        'month': month,
+        'summary': {
+            'total_revenue': float(totals.total_revenue or 0),
+            'total_cost': float(totals.total_cost or 0),
+            'total_profit': float(totals.total_profit or 0),
+            'total_items_sold': int(totals.total_items_sold or 0)
+        },
+        'daily_breakdown': [
+            {
+                'date': str(day),
+                'revenue': float(revenue),
+                'profit': float(profit),
+                'items_sold': int(items)
+            }
+            for day, revenue, profit, items in daily_breakdown
+        ],
+        'payment_breakdown': [
+            {
+                'method': m,
+                'revenue': float(r),
+                'profit': float(p),
+                'transactions': int(c)
+            }
+            for m, r, p, c in payment_breakdown
+        ]
+    })
+
+@app.route('/api/reports/yearly', methods=['GET'])
+def yearly_report():
+    year = request.args.get('year', type=int)
+
+    if not year:
+        return jsonify({'error': 'year is required'}), 400
+
+    totals = db.session.query(
+        func.sum(Sale.total_revenue).label('total_revenue'),
+        func.sum(Sale.total_cost).label('total_cost'),
+        func.sum(Sale.profit).label('total_profit'),
+        func.sum(Sale.quantity_sold).label('total_items_sold')
+    ).filter(
+        func.extract('year', Sale.sale_date) == year
+    ).first()
+
+    monthly_breakdown = db.session.query(
+        func.extract('month', Sale.sale_date).label('month'),
+        func.sum(Sale.total_revenue).label('revenue'),
+        func.sum(Sale.profit).label('profit'),
+        func.sum(Sale.quantity_sold).label('items_sold')
+    ).filter(
+        func.extract('year', Sale.sale_date) == year
+    ).group_by(func.extract('month', Sale.sale_date))\
+     .order_by(func.extract('month', Sale.sale_date)).all()
+
+    month_names = {
+        1: 'January', 2: 'February', 3: 'March', 4: 'April',
+        5: 'May', 6: 'June', 7: 'July', 8: 'August',
+        9: 'September', 10: 'October', 11: 'November', 12: 'December'
+    }
+
+    return jsonify({
+        'year': year,
+        'summary': {
+            'total_revenue': float(totals.total_revenue or 0),
+            'total_cost': float(totals.total_cost or 0),
+            'total_profit': float(totals.total_profit or 0),
+            'total_items_sold': int(totals.total_items_sold or 0)
+        },
+        'monthly_breakdown': [
+            {
+                'month': int(month),
+                'month_name': month_names[int(month)],
+                'revenue': float(revenue),
+                'profit': float(profit),
+                'items_sold': int(items)
+            }
+            for month, revenue, profit, items in monthly_breakdown
+        ]
+    })
+
 
 
 if __name__== '__main__':
