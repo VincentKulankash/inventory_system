@@ -6,10 +6,11 @@
 <h1>📋 Product Inventory</h1>
 
 <div class="filters">
-    <input type="text" id="searchInput" placeholder="Search products..." onkeyup="filterProducts()">
-    <select id="categoryFilter" onchange="filterProducts()">
-        <option value="">All Categories</option>
-    </select>
+    <input type="text" id="searchInput" placeholder="Search by product name..." oninput="filterProducts()">
+    <!-- Type-to-search category with autocomplete -->
+    <input type="text" id="categoryFilter" list="categoryOptions"
+           placeholder="Filter by category..." oninput="filterProducts()">
+    <datalist id="categoryOptions"></datalist>
 </div>
 
 <table id="inventoryTable">
@@ -25,9 +26,7 @@
             <th>Actions</th>
         </tr>
     </thead>
-    <tbody id="productTableBody">
-        <!-- Populated by JS -->
-    </tbody>
+    <tbody id="productTableBody"></tbody>
 </table>
 {% endblock %}
 

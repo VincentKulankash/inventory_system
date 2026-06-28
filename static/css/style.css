@@ -205,3 +205,15 @@ button.danger { background: #e74c3c; color: white; }
     .form-row { grid-template-columns: 1fr; }
     .summary-cards { grid-template-columns: 1fr; }
 }
+/* ── Date range filter card ── */
+.report-filter-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+    margin-bottom: 2rem;
+}
+.report-filter-card h2 {
+    margin-bottom: 1rem;
+    color: #2c3e50;
+}

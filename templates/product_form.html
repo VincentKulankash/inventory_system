@@ -5,7 +5,6 @@
 {% block content %}
 <h1 id="formTitle">{% if product_id %}✏️ Edit Product{% else %}➕ Add New Product{% endif %}</h1>
 
-<!-- Mode toggle — only shown when not editing a specific product -->
 {% if not product_id %}
 <div class="form-group">
     <label>What would you like to do?</label>
@@ -16,7 +15,7 @@
 </div>
 {% endif %}
 
-<!-- Restock section — hidden by default -->
+<!-- Restock section -->
 <div id="restockSection" style="display:none;">
     <div class="form-group">
         <label for="restockSelect">Select Product to Restock *</label>
@@ -39,22 +38,26 @@
 <!-- New product / edit form -->
 <form id="productForm" {% if product_id %}data-product-id="{{ product_id }}"{% endif %}>
     <input type="hidden" id="productId" value="{{ product_id or '' }}">
-    
+
     <div class="form-group">
         <label for="productName">Product Name *</label>
         <input type="text" id="productName" required>
     </div>
-    
+
     <div class="form-group">
         <label for="description">Description</label>
         <textarea id="description" rows="3"></textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="category">Category *</label>
-        <input type="text" id="category" required placeholder="e.g., Bag, Shoe">
+        <!-- text input + datalist gives a free-type field with autocomplete suggestions -->
+        <input type="text" id="category" list="categoryOptions" required
+               placeholder="Type or choose an existing category">
+        <datalist id="categoryOptions"></datalist>
+        <small class="stock-info">Start typing to see existing categories, or enter a new one.</small>
     </div>
-    
+
     <div class="form-row">
         <div class="form-group">
             <label for="buyingPrice">Buying Price *</label>
@@ -65,7 +68,7 @@
             <input type="number" id="sellingPrice" step="0.01" min="0" required>
         </div>
     </div>
-    
+
     <div class="form-row">
         <div class="form-group">
             <label for="quantityInStock">Quantity in Stock *</label>
@@ -76,7 +79,7 @@
             <input type="number" id="lowStockThreshold" min="1" value="5">
         </div>
     </div>
-    
+
     <div class="form-actions">
         <button type="submit" class="btn-primary">Save Product</button>
         <a href="{{ url_for('inventory_page') }}" class="btn-secondary">Cancel</a>

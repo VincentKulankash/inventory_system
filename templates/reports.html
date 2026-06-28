@@ -5,14 +5,15 @@
 {% block content %}
 <h1>📊 Reports Dashboard</h1>
 
+<!-- ── Overall summary ── -->
 <div class="summary-cards">
     <div class="card">
         <h3>Total Revenue</h3>
-        <p id="totalRevenue">$0.00</p>
+        <p id="totalRevenue">KSh0.00</p>
     </div>
     <div class="card">
         <h3>Total Profit</h3>
-        <p id="totalProfit">$0.00</p>
+        <p id="totalProfit">KSh0.00</p>
     </div>
     <div class="card">
         <h3>Items Sold</h3>
@@ -20,19 +21,82 @@
     </div>
 </div>
 
-<h2>📉 Low Stock Alerts</h2>
-<table id="lowStockTable">
-    <thead>
-        <tr><th>Product</th><th>Category</th><th>Stock</th><th>Threshold</th></tr>
-    </thead>
+<!-- ── Date range filter ── -->
+<div class="report-filter-card">
+    <h2>🔍 Filter by Date Range</h2>
+    <div class="form-row" style="align-items:flex-end; gap:1rem;">
+        <div class="form-group" style="margin-bottom:0;">
+            <label for="startDate">From</label>
+            <input type="date" id="startDate">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label for="endDate">To</label>
+            <input type="date" id="endDate">
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+            <button class="btn-primary" onclick="loadRangeReport()">Apply Filter</button>
+            <button class="btn-secondary" onclick="clearRangeFilter()">Clear</button>
+        </div>
+    </div>
+    <div id="rangeError" style="display:none; color:#e74c3c; margin-top:0.75rem; font-weight:600;"></div>
+</div>
+
+<!-- ── Range results (hidden until filter applied) ── -->
+<div id="rangeResults" style="display:none;">
+    <h2>📅 Results: <span id="rangeLabel"></span></h2>
+    <div class="summary-cards">
+        <div class="card">
+            <h3>Revenue</h3>
+            <p id="rangeRevenue">KSh0.00</p>
+        </div>
+        <div class="card">
+            <h3>Profit</h3>
+            <p id="rangeProfit">KSh0.00</p>
+        </div>
+        <div class="card">
+            <h3>Transactions</h3>
+            <p id="rangeTx">0</p>
+        </div>
+    </div>
+
+    <h3>By Category</h3>
+    <table>
+        <thead><tr><th>Category</th><th>Revenue</th><th>Profit</th><th>Items Sold</th></tr></thead>
+        <tbody id="rangeCategoryBody"></tbody>
+    </table>
+
+    <h3 style="margin-top:1.5rem;">By Payment Method</h3>
+    <table>
+        <thead><tr><th>Method</th><th>Revenue</th><th>Transactions</th></tr></thead>
+        <tbody id="rangePaymentBody"></tbody>
+    </table>
+
+    <!-- Download buttons -->
+    <div style="display:flex; gap:1rem; margin-top:1.5rem;">
+        <button class="btn-primary" onclick="downloadExport('pdf')">⬇ Download PDF</button>
+        <button class="btn-secondary" onclick="downloadExport('excel')">⬇ Download Excel</button>
+    </div>
+</div>
+
+<!-- Download all-time -->
+<div style="margin-top:2rem; padding:1.5rem; background:white; border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.1);">
+    <h2>📥 Export Full Records</h2>
+    <p style="color:#7f8c8d; margin-bottom:1rem;">Download every sale ever recorded in the system.</p>
+    <div style="display:flex; gap:1rem;">
+        <button class="btn-primary" onclick="downloadAll('pdf')">⬇ Download All as PDF</button>
+        <button class="btn-secondary" onclick="downloadAll('excel')">⬇ Download All as Excel</button>
+    </div>
+</div>
+
+<h2 style="margin-top:2rem;">📉 Low Stock Alerts</h2>
+<table>
+    <thead><tr><th>Product</th><th>Category</th><th>Stock</th><th>Threshold</th></tr></thead>
     <tbody id="lowStockBody"></tbody>
 </table>
 
-<h2>📈 Sales by Category</h2>
-<table id="categoryTable">
-    <thead>
-        <tr><th>Category</th><th>Revenue</th><th>Profit</th></tr>
-    </thead>
+<h2 style="margin-top:2rem;">📈 Sales by Category</h2>
+<table>
+    <thead><tr><th>Category</th><th>Revenue</th><th>Profit</th></tr></thead>
     <tbody id="categoryBody"></tbody>
 </table>
 {% endblock %}

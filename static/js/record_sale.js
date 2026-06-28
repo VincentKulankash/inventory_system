@@ -1,7 +1,7 @@
 const API_BASE = '/api';
 
-// ── STATE ──
-let productsList = [];
+let productsList = [];        // full list from API
+let filteredProducts = [];    // after category filter
 let paymentMethodsList = [];
 let paybillsList = [];
 let cart = [];
@@ -11,36 +11,38 @@ document.addEventListener('DOMContentLoaded', loadData);
 
 async function loadData() {
     try {
-        // Load products — clear first to prevent duplicates
+        // Products
         const productsRes = await fetch(`${API_BASE}/products`);
         productsList = await productsRes.json();
-        const productSelect = document.getElementById('productSelect');
-        productSelect.innerHTML = '<option value="">-- Choose a product --</option>';
-        productsList.forEach(p => {
-            const option = document.createElement('option');
-            option.value = p.product_id;
-            option.textContent = `${p.product_name} (Stock: ${p.quantity_in_stock})`;
-            option.dataset.stock = p.quantity_in_stock;
-            option.dataset.sellingPrice = p.selling_price;
-            option.dataset.buyingPrice = p.buying_price;
-            option.dataset.name = p.product_name;
-            productSelect.appendChild(option);
+        filteredProducts = [...productsList];
+
+        // Categories — populate category datalist
+        const cats = [...new Set(productsList.map(p => p.category))].sort();
+        const catDL = document.getElementById('categoryFilterOptions');
+        catDL.innerHTML = '';
+        cats.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c;
+            catDL.appendChild(opt);
         });
 
-        // Load payment methods — clear first to prevent duplicates
+        // Populate initial product datalist
+        rebuildProductDatalist(productsList);
+
+        // Payment methods
         const methodsRes = await fetch(`${API_BASE}/payment-methods`);
         paymentMethodsList = await methodsRes.json();
         const methodSelect = document.getElementById('paymentMethod');
         methodSelect.innerHTML = '<option value="">-- Select payment method --</option>';
         paymentMethodsList.forEach(m => {
-            const option = document.createElement('option');
-            option.value = m.payment_method_id;
-            option.textContent = m.method_name;
-            option.dataset.name = m.method_name;
-            methodSelect.appendChild(option);
+            const opt = document.createElement('option');
+            opt.value = m.payment_method_id;
+            opt.textContent = m.method_name;
+            opt.dataset.name = m.method_name;
+            methodSelect.appendChild(opt);
         });
 
-        // Load paybills — store for later
+        // Paybills
         const paybillsRes = await fetch(`${API_BASE}/paybills`);
         paybillsList = await paybillsRes.json();
 
@@ -49,95 +51,95 @@ async function loadData() {
     }
 }
 
-// ── PRODUCT SELECTION ──
-document.getElementById('productSelect').addEventListener('change', function() {
-    const option = this.options[this.selectedIndex];
-    const stock = option.dataset.stock;
-    document.getElementById('stockInfo').textContent = stock ? `Available stock: ${stock}` : '';
-    updatePreview();
-});
+// ── CATEGORY FILTER ──
+function onCategoryFilter() {
+    const cat = document.getElementById('categorySearch').value.trim().toLowerCase();
 
-document.getElementById('quantitySold').addEventListener('input', updatePreview);
+    filteredProducts = cat
+        ? productsList.filter(p => p.category.toLowerCase().includes(cat))
+        : [...productsList];
 
-// ── PAYMENT METHOD ──
-function onPaymentMethodChange() {
-    const select = document.getElementById('paymentMethod');
-    const opt = select.options[select.selectedIndex];
-    const paybillGroup = document.getElementById('paybillGroup');
-    const paybillSelect = document.getElementById('paybillSelect');
-    const paybillHint = document.getElementById('paybillHint');
+    // Clear any selected product since the list changed
+    document.getElementById('productSearch').value = '';
+    document.getElementById('selectedProductId').value = '';
+    document.getElementById('stockInfo').textContent = '';
 
-    if (opt.dataset.name && opt.dataset.name.toLowerCase() === 'mpesa') {
-        paybillGroup.style.display = 'block';
+    rebuildProductDatalist(filteredProducts);
+}
 
-        // Populate paybills — clear first
-        const mpesaPaybills = paybillsList.filter(
-            p => p.payment_method_id === parseInt(select.value)
-        );
-        paybillSelect.innerHTML = '<option value="">-- Select business number --</option>';
+// ── PRODUCT DATALIST ──
+function rebuildProductDatalist(list) {
+    const dl = document.getElementById('productOptions');
+    dl.innerHTML = '';
+    list.forEach(p => {
+        const opt = document.createElement('option');
+        // Value is what shows in the input; we resolve the ID on selection
+        opt.value = p.product_name;
+        opt.dataset.id = p.product_id;
+        dl.appendChild(opt);
+    });
+}
 
-        if (mpesaPaybills.length === 0) {
-            paybillHint.textContent = 'No business numbers configured yet. Contact your administrator.';
-        } else {
-            paybillHint.textContent = '';
-            mpesaPaybills.forEach(p => {
-                const o = document.createElement('option');
-                o.value = p.paybill_id;
-                o.textContent = `${p.paybill_name} (${p.paybill_number})`;
-                paybillSelect.appendChild(o);
-            });
-        }
+// ── PRODUCT SEARCH / SELECTION ──
+function onProductSearch() {
+    const typed = document.getElementById('productSearch').value.trim();
+
+    // Find an exact match in the current filtered list
+    const match = filteredProducts.find(
+        p => p.product_name.toLowerCase() === typed.toLowerCase()
+    );
+
+    if (match) {
+        document.getElementById('selectedProductId').value = match.product_id;
+        document.getElementById('stockInfo').textContent =
+            `Available stock: ${match.quantity_in_stock} units  |  Price: KSh${parseFloat(match.selling_price).toFixed(2)}`;
     } else {
-        paybillGroup.style.display = 'none';
-        paybillSelect.value = '';
+        document.getElementById('selectedProductId').value = '';
+        document.getElementById('stockInfo').textContent = '';
     }
+
+    updatePreview();
 }
 
 // ── CART ──
 function addItemToCart() {
-    const select = document.getElementById('productSelect');
-    const opt = select.options[select.selectedIndex];
+    const productId = parseInt(document.getElementById('selectedProductId').value);
     const qty = parseInt(document.getElementById('quantitySold').value);
 
-    if (!opt.value) {
-        showError('Please select a product.');
-        return;
-    }
-    if (!qty || qty <= 0) {
-        showError('Please enter a valid quantity.');
-        return;
-    }
+    if (!productId) { showError('Please select a valid product from the list.'); return; }
+    if (!qty || qty <= 0) { showError('Please enter a valid quantity.'); return; }
 
-    const productId = parseInt(opt.value);
-    const stock = parseInt(opt.dataset.stock);
+    const product = filteredProducts.find(p => p.product_id === productId)
+                 || productsList.find(p => p.product_id === productId);
+    if (!product) { showError('Product not found. Please select again.'); return; }
 
-    // Check stock accounting for items already in cart
-    const existingItem = cart.find(i => i.productId === productId);
-    const alreadyInCart = existingItem ? existingItem.quantity : 0;
-    const remaining = stock - alreadyInCart;
+    const existing = cart.find(i => i.productId === productId);
+    const alreadyInCart = existing ? existing.quantity : 0;
+    const remaining = product.quantity_in_stock - alreadyInCart;
 
     if (qty > remaining) {
-        showError(`Only ${remaining} unit(s) available for ${opt.dataset.name}.`);
+        showError(`Only ${remaining} unit(s) available for ${product.product_name}.`);
         return;
     }
 
     hideError();
 
-    if (existingItem) {
-        existingItem.quantity += qty;
+    if (existing) {
+        existing.quantity += qty;
     } else {
         cart.push({
-            productId,
-            name: opt.dataset.name,
-            sellingPrice: parseFloat(opt.dataset.sellingPrice),
-            buyingPrice: parseFloat(opt.dataset.buyingPrice),
-            stock,
+            productId: product.product_id,
+            name: product.product_name,
+            sellingPrice: parseFloat(product.selling_price),
+            buyingPrice: parseFloat(product.buying_price),
+            stock: product.quantity_in_stock,
             quantity: qty
         });
     }
 
-    // Reset selectors
-    select.value = '';
+    // Reset product selection
+    document.getElementById('productSearch').value = '';
+    document.getElementById('selectedProductId').value = '';
     document.getElementById('quantitySold').value = '';
     document.getElementById('stockInfo').textContent = '';
 
@@ -161,11 +163,7 @@ function clearCart() {
 function renderCart() {
     const cartSection = document.getElementById('cartSection');
     const cartBody = document.getElementById('cartBody');
-
-    if (cart.length === 0) {
-        cartSection.style.display = 'none';
-        return;
-    }
+    if (cart.length === 0) { cartSection.style.display = 'none'; return; }
 
     cartSection.style.display = 'block';
     cartBody.innerHTML = '';
@@ -185,16 +183,44 @@ function renderCart() {
 
 // ── PREVIEW ──
 function updatePreview() {
-    let totalRevenue = 0;
-    let totalProfit = 0;
-
+    let totalRevenue = 0, totalProfit = 0;
     cart.forEach(item => {
         totalRevenue += item.quantity * item.sellingPrice;
         totalProfit += item.quantity * (item.sellingPrice - item.buyingPrice);
     });
-
     document.getElementById('previewRevenue').textContent = `KSh${totalRevenue.toFixed(2)}`;
     document.getElementById('previewProfit').textContent = `KSh${totalProfit.toFixed(2)}`;
+}
+
+// ── PAYMENT METHOD ──
+function onPaymentMethodChange() {
+    const select = document.getElementById('paymentMethod');
+    const opt = select.options[select.selectedIndex];
+    const paybillGroup = document.getElementById('paybillGroup');
+    const paybillSelect = document.getElementById('paybillSelect');
+    const paybillHint = document.getElementById('paybillHint');
+
+    if (opt.dataset.name && opt.dataset.name.toLowerCase() === 'mpesa') {
+        paybillGroup.style.display = 'block';
+        const mpesaPaybills = paybillsList.filter(
+            p => p.payment_method_id === parseInt(select.value)
+        );
+        paybillSelect.innerHTML = '<option value="">-- Select business number --</option>';
+        if (mpesaPaybills.length === 0) {
+            paybillHint.textContent = 'No business numbers configured yet.';
+        } else {
+            paybillHint.textContent = '';
+            mpesaPaybills.forEach(p => {
+                const o = document.createElement('option');
+                o.value = p.paybill_id;
+                o.textContent = `${p.paybill_name} (${p.paybill_number})`;
+                paybillSelect.appendChild(o);
+            });
+        }
+    } else {
+        paybillGroup.style.display = 'none';
+        paybillSelect.value = '';
+    }
 }
 
 // ── SUBMIT ──
@@ -202,25 +228,15 @@ document.getElementById('saleForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     hideError();
 
-    // Validate cart has items
-    if (cart.length === 0) {
-        showError('Please add at least one item to the sale.');
-        return;
-    }
+    if (cart.length === 0) { showError('Please add at least one item to the sale.'); return; }
 
-    // Validate payment method
     const paymentMethodId = parseInt(document.getElementById('paymentMethod').value);
-    if (!paymentMethodId) {
-        showError('Please select a payment method.');
-        return;
-    }
+    if (!paymentMethodId) { showError('Please select a payment method.'); return; }
 
-    // Validate paybill if Mpesa
     const methodOpt = document.getElementById('paymentMethod');
     const selectedMethodName = methodOpt.options[methodOpt.selectedIndex].dataset.name || '';
     const paybillId = document.getElementById('paybillSelect').value
-        ? parseInt(document.getElementById('paybillSelect').value)
-        : null;
+        ? parseInt(document.getElementById('paybillSelect').value) : null;
 
     if (selectedMethodName.toLowerCase() === 'mpesa' && !paybillId) {
         showError('Please select an Mpesa business number.');
@@ -228,7 +244,6 @@ document.getElementById('saleForm').addEventListener('submit', async (e) => {
     }
 
     try {
-        // Post each cart item as a separate sale record
         for (const item of cart) {
             const res = await fetch(`${API_BASE}/sales`, {
                 method: 'POST',
@@ -240,18 +255,17 @@ document.getElementById('saleForm').addEventListener('submit', async (e) => {
                     paybill_id: paybillId
                 })
             });
-
             const result = await res.json();
-            if (!res.ok) {
-                throw new Error(result.error || `Failed to record sale for ${item.name}`);
-            }
+            if (!res.ok) throw new Error(result.error || `Failed to record sale for ${item.name}`);
         }
 
         alert('Sale recorded successfully!');
         clearCart();
         document.getElementById('paymentMethod').value = '';
         document.getElementById('paybillGroup').style.display = 'none';
-        // Reload to get fresh stock counts — clears dropdowns correctly
+        document.getElementById('categorySearch').value = '';
+        filteredProducts = [...productsList];
+        rebuildProductDatalist(productsList);
         loadData();
 
     } catch (error) {
@@ -265,7 +279,6 @@ function showError(msg) {
     el.textContent = msg;
     el.style.display = 'block';
 }
-
 function hideError() {
     document.getElementById('saleError').style.display = 'none';
 }

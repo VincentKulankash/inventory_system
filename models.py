@@ -91,5 +91,5 @@ class Sale(db.Model):
             'profit': float(self.profit),
             'payment_method': self.payment_method.method_name if self.payment_method else None,
             'paybill': self.paybill.paybill_name if self.paybill else None,
-            'sale_date': self.sale_date.isoformat() if self.sale_date else None
+            'sale_date': self.sale_date.isoformat() + 'Z' if self.sale_date else None
         }

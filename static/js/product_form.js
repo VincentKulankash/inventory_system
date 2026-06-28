@@ -1,7 +1,5 @@
 const API_BASE = '/api';
 
-// ── MODE TOGGLE (new product vs restock) ──
-// Only relevant on the add page, not edit page
 let currentMode = 'new';
 
 function setMode(mode) {
@@ -48,11 +46,7 @@ function onRestockProductChange() {
     const select = document.getElementById('restockSelect');
     const opt = select.options[select.selectedIndex];
     const hint = document.getElementById('restockCurrentStock');
-    if (opt.value) {
-        hint.textContent = `Current stock: ${opt.dataset.stock} units`;
-    } else {
-        hint.textContent = '';
-    }
+    hint.textContent = opt.value ? `Current stock: ${opt.dataset.stock} units` : '';
 }
 
 async function submitRestock() {
@@ -60,24 +54,13 @@ async function submitRestock() {
     const opt = select.options[select.selectedIndex];
     const qty = parseInt(document.getElementById('restockQuantity').value);
     const errorEl = document.getElementById('restockError');
-
     errorEl.style.display = 'none';
 
-    if (!opt.value) {
-        errorEl.textContent = 'Please select a product to restock.';
-        errorEl.style.display = 'block';
-        return;
-    }
-
-    if (!qty || qty <= 0) {
-        errorEl.textContent = 'Please enter a valid quantity.';
-        errorEl.style.display = 'block';
-        return;
-    }
+    if (!opt.value) { errorEl.textContent = 'Please select a product to restock.'; errorEl.style.display = 'block'; return; }
+    if (!qty || qty <= 0) { errorEl.textContent = 'Please enter a valid quantity.'; errorEl.style.display = 'block'; return; }
 
     const productId = parseInt(opt.value);
-    const currentStock = parseInt(opt.dataset.stock);
-    const newStock = currentStock + qty;
+    const newStock = parseInt(opt.dataset.stock) + qty;
 
     try {
         const res = await fetch(`${API_BASE}/products/${productId}`, {
@@ -85,9 +68,7 @@ async function submitRestock() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ quantity_in_stock: newStock })
         });
-
         const result = await res.json();
-
         if (res.ok) {
             alert(`Stock updated. ${opt.textContent} now has ${newStock} units.`);
             window.location.href = '/inventory';
@@ -101,42 +82,63 @@ async function submitRestock() {
     }
 }
 
-// ── EDIT MODE — load existing product data ──
+// ── CATEGORY DROPDOWN ──
+async function loadCategoryOptions(selectedValue = '') {
+    try {
+        const res = await fetch(`${API_BASE}/categories`);
+        const categories = await res.json();
+        const datalist = document.getElementById('categoryOptions');
+        if (!datalist) return;
+        datalist.innerHTML = '';
+        categories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            datalist.appendChild(opt);
+        });
+        // Pre-select if editing
+        if (selectedValue) {
+            document.getElementById('category').value = selectedValue;
+        }
+    } catch (err) {
+        console.error('Error loading categories:', err);
+    }
+}
+
+// ── EDIT MODE ──
 const productForm = document.getElementById('productForm');
-const editId = productForm.dataset.productId;
+const editId = productForm ? productForm.dataset.productId : null;
 
 if (editId) {
-    // Hide the mode toggle buttons if editing
     const btnNew = document.getElementById('btnNewProduct');
     const btnRestock = document.getElementById('btnRestock');
     if (btnNew) btnNew.style.display = 'none';
     if (btnRestock) btnRestock.style.display = 'none';
-
     loadProductForEdit(editId);
+} else {
+    loadCategoryOptions();
 }
 
 async function loadProductForEdit(id) {
     try {
         const response = await fetch(`${API_BASE}/products/${id}`);
         const product = await response.json();
-
         document.getElementById('productId').value = product.product_id;
         document.getElementById('productName').value = product.product_name;
         document.getElementById('description').value = product.description || '';
-        document.getElementById('category').value = product.category;
         document.getElementById('buyingPrice').value = product.buying_price;
         document.getElementById('sellingPrice').value = product.selling_price;
         document.getElementById('quantityInStock').value = product.quantity_in_stock;
         document.getElementById('lowStockThreshold').value = product.low_stock_threshold;
+        // Load categories then set the value
+        await loadCategoryOptions(product.category);
     } catch (error) {
         console.error('Error loading product:', error);
     }
 }
 
-// ── SAVE NEW / EDIT PRODUCT ──
+// ── SAVE ──
 document.getElementById('productForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const productData = {
         product_name: document.getElementById('productName').value,
         description: document.getElementById('description').value,
@@ -153,13 +155,11 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
 
     try {
         const response = await fetch(url, {
-            method: method,
+            method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(productData)
         });
-
         const result = await response.json();
-
         if (response.ok) {
             alert(productId ? 'Product updated!' : 'Product added!');
             window.location.href = '/inventory';

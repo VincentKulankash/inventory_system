@@ -6,14 +6,28 @@
 <h1>💰 Record a Sale</h1>
 
 <form id="saleForm">
+
+    <!-- ── Category filter ── -->
     <div class="form-group">
-        <label for="productSelect">Select Product</label>
-        <select id="productSelect">
-            <option value="">-- Choose a product --</option>
-        </select>
+        <label for="categorySearch">Filter by Category</label>
+        <input type="text" id="categorySearch" list="categoryFilterOptions"
+               placeholder="Type a category to filter products..."
+               oninput="onCategoryFilter()">
+        <datalist id="categoryFilterOptions"></datalist>
+    </div>
+
+    <!-- ── Product search with autocomplete ── -->
+    <div class="form-group">
+        <label for="productSearch">Search Product</label>
+        <input type="text" id="productSearch" list="productOptions"
+               placeholder="Type product name..."
+               oninput="onProductSearch()" autocomplete="off">
+        <datalist id="productOptions"></datalist>
+        <!-- Hidden select keeps the actual product_id -->
+        <input type="hidden" id="selectedProductId">
         <small id="stockInfo" class="stock-info"></small>
     </div>
-    
+
     <div class="form-group">
         <label for="quantitySold">Quantity</label>
         <input type="number" id="quantitySold" min="1">
@@ -23,7 +37,7 @@
         <button type="button" class="btn-primary" onclick="addItemToCart()">+ Add to Cart</button>
     </div>
 
-    <!-- Cart table — hidden until items are added -->
+    <!-- Cart -->
     <div id="cartSection" style="display:none;">
         <h3>Items in this Sale</h3>
         <table>
@@ -39,14 +53,14 @@
             <tbody id="cartBody"></tbody>
         </table>
     </div>
-    
+
     <div class="form-group">
         <label for="paymentMethod">Payment Method *</label>
         <select id="paymentMethod" onchange="onPaymentMethodChange()">
             <option value="">-- Select payment method --</option>
         </select>
     </div>
-    
+
     <div class="form-group" id="paybillGroup" style="display:none;">
         <label for="paybillSelect">Mpesa Business Number *</label>
         <select id="paybillSelect">
@@ -54,15 +68,15 @@
         </select>
         <small id="paybillHint" class="stock-info"></small>
     </div>
-    
-    <div class="sale-preview" id="salePreview">
+
+    <div class="sale-preview">
         <h3>Sale Preview</h3>
         <p>Revenue: <span id="previewRevenue">KSh0.00</span></p>
         <p>Profit: <span id="previewProfit">KSh0.00</span></p>
     </div>
 
     <div id="saleError" style="display:none; color:#e74c3c; margin-bottom:1rem; font-weight:600;"></div>
-    
+
     <div class="form-actions">
         <button type="submit" class="btn-primary">Complete Sale</button>
         <button type="button" class="btn-secondary" onclick="clearCart()">Clear</button>
