@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Report{% endblock %}
+
+{% block content %}
+<h1>📅 Daily Report - <span id="reportDate"></span></h1>
+
+<div class="summary-cards">
+    <div class="card">
+        <h3>Today's Revenue</h3>
+        <p id="dailyRevenue">$0.00</p>
+    </div>
+    <div class="card">
+        <h3>Today's Profit</h3>
+        <p id="dailyProfit">$0.00</p>
+    </div>
+    <div class="card">
+        <h3>Transactions</h3>
+        <p id="dailyTransactions">0</p>
+    </div>
+</div>
+
+<h2>💳 Payment Breakdown</h2>
+<table id="paymentTable">
+    <thead>
+        <tr><th>Method</th><th>Revenue</th><th>Profit</th><th>Transactions</th></tr>
+    </thead>
+    <tbody id="paymentBody"></tbody>
+</table>
+
+<h2>📝 Today's Sales</h2>
+<table id="salesTable">
+    <thead>
+        <tr><th>Sale ID</th><th>Product</th><th>Qty</th><th>Revenue</th><th>Profit</th><th>Time</th></tr>
+    </thead>
+    <tbody id="salesBody"></tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/daily_report.js') }}"></script>
+{% endblock %}

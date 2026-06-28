@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Inventory{% endblock %}
+
+{% block content %}
+<h1>📋 Product Inventory</h1>
+
+<div class="filters">
+    <input type="text" id="searchInput" placeholder="Search products..." onkeyup="filterProducts()">
+    <select id="categoryFilter" onchange="filterProducts()">
+        <option value="">All Categories</option>
+    </select>
+</div>
+
+<table id="inventoryTable">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Category</th>
+            <th>Stock</th>
+            <th>Buying Price</th>
+            <th>Selling Price</th>
+            <th>Status</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody id="productTableBody">
+        <!-- Populated by JS -->
+    </tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}{% if product_id %}Edit Product{% else %}Add Product{% endif %}{% endblock %}
+
+{% block content %}
+<h1 id="formTitle">{% if product_id %}✏️ Edit Product{% else %}➕ Add New Product{% endif %}</h1>
+
+<form id="productForm" {% if product_id %}data-product-id="{{ product_id }}"{% endif %}>
+    <input type="hidden" id="productId" value="{{ product_id or '' }}">
+    
+    <div class="form-group">
+        <label for="productName">Product Name *</label>
+        <input type="text" id="productName" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" rows="3"></textarea>
+    </div>
+    
+    <div class="form-group">
+        <label for="category">Category *</label>
+        <input type="text" id="category" required placeholder="e.g., Electronics, Clothing">
+    </div>
+    
+    <div class="form-row">
+        <div class="form-group">
+            <label for="buyingPrice">Buying Price *</label>
+            <input type="number" id="buyingPrice" step="0.01" min="0" required>
+        </div>
+        <div class="form-group">
+            <label for="sellingPrice">Selling Price *</label>
+            <input type="number" id="sellingPrice" step="0.01" min="0" required>
+        </div>
+    </div>
+    
+    <div class="form-row">
+        <div class="form-group">
+            <label for="quantityInStock">Quantity in Stock *</label>
+            <input type="number" id="quantityInStock" min="0" required>
+        </div>
+        <div class="form-group">
+            <label for="lowStockThreshold">Low Stock Alert Threshold</label>
+            <input type="number" id="lowStockThreshold" min="1" value="5">
+        </div>
+    </div>
+    
+    <div class="form-actions">
+        <button type="submit" class="btn-primary">Save Product</button>
+        <a href="{{ url_for('inventory_page') }}" class="btn-secondary">Cancel</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/product_form.js') }}"></script>
+{% endblock %}

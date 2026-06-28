@@ -1,8 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template, redirect, url_for
 from config import Config 
 from models import db, Product, Sale, PaymentMethod, Paybill
 from flask_migrate import Migrate
 from sqlalchemy import func
+
+
 
 app = Flask(__name__)
 
@@ -10,18 +12,6 @@ app.config.from_object(Config)
 
 db.init_app(app)
 migrate = Migrate(app, db)
-
-@app.route('/')
-def home():
-    return jsonify({
-        'message': 'Inventory Management System API',
-        'status': 'running',
-        'endpoints': {
-            '/api/products': 'Product management',
-            '/api/sales': 'Sales management',
-            '/api/reports': 'Reports'
-        }
-    })
 
 @app.route('/api/health')
 def health():
@@ -350,6 +340,33 @@ def yearly_report():
     })
 
 
+@app.route('/')
+def home():
+    return redirect(url_for('inventory_page'))
+
+@app.route('/inventory')
+def inventory_page():
+    return render_template('inventory.html')
+
+@app.route('/products/new')
+def new_product_page():
+    return render_template('product_form.html')
+
+@app.route('/products/<int:product_id>/edit')
+def edit_product_page(product_id):
+    return render_template('product_form.html', product_id=product_id)
+
+@app.route('/sales/new')
+def record_sale_page():
+    return render_template('record_sale.html')
+
+@app.route('/reports/daily')
+def daily_report_page():
+    return render_template('daily_report.html')
+
+@app.route('/reports')
+def reports_page():
+    return render_template('reports.html')
 
 if __name__== '__main__':
     app.run(debug=True)

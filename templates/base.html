@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Inventory System{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">📦 Inventory System</div>
+        <ul class="nav-links">
+            <li><a href="{{ url_for('inventory_page') }}">Inventory</a></li>
+            <li><a href="{{ url_for('new_product_page') }}">Add Product</a></li>
+            <li><a href="{{ url_for('record_sale_page') }}">Record Sale</a></li>
+            <li><a href="{{ url_for('reports_page') }}">Reports</a></li>
+            <li><a href="{{ url_for('daily_report_page') }}">Daily Report</a></li>
+        </ul>
+    </nav>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

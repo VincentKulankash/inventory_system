@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<h1>📊 Reports Dashboard</h1>
+
+<div class="summary-cards">
+    <div class="card">
+        <h3>Total Revenue</h3>
+        <p id="totalRevenue">$0.00</p>
+    </div>
+    <div class="card">
+        <h3>Total Profit</h3>
+        <p id="totalProfit">$0.00</p>
+    </div>
+    <div class="card">
+        <h3>Items Sold</h3>
+        <p id="totalItems">0</p>
+    </div>
+</div>
+
+<h2>📉 Low Stock Alerts</h2>
+<table id="lowStockTable">
+    <thead>
+        <tr><th>Product</th><th>Category</th><th>Stock</th><th>Threshold</th></tr>
+    </thead>
+    <tbody id="lowStockBody"></tbody>
+</table>
+
+<h2>📈 Sales by Category</h2>
+<table id="categoryTable">
+    <thead>
+        <tr><th>Category</th><th>Revenue</th><th>Profit</th></tr>
+    </thead>
+    <tbody id="categoryBody"></tbody>
+</table>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
+{% endblock %}
