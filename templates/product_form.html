@@ -5,6 +5,38 @@
 {% block content %}
 <h1 id="formTitle">{% if product_id %}✏️ Edit Product{% else %}➕ Add New Product{% endif %}</h1>
 
+<!-- Mode toggle — only shown when not editing a specific product -->
+{% if not product_id %}
+<div class="form-group">
+    <label>What would you like to do?</label>
+    <div style="display:flex; gap:1rem; margin-top:0.5rem;">
+        <button type="button" id="btnNewProduct" class="btn-primary" onclick="setMode('new')">Add New Product</button>
+        <button type="button" id="btnRestock" class="btn-secondary" onclick="setMode('restock')">Restock Existing Product</button>
+    </div>
+</div>
+{% endif %}
+
+<!-- Restock section — hidden by default -->
+<div id="restockSection" style="display:none;">
+    <div class="form-group">
+        <label for="restockSelect">Select Product to Restock *</label>
+        <select id="restockSelect" onchange="onRestockProductChange()">
+            <option value="">-- Choose a product --</option>
+        </select>
+        <small id="restockCurrentStock" class="stock-info"></small>
+    </div>
+    <div class="form-group">
+        <label for="restockQuantity">Quantity to Add *</label>
+        <input type="number" id="restockQuantity" min="1" placeholder="e.g. 20">
+    </div>
+    <div id="restockError" style="display:none; color:#e74c3c; margin-bottom:1rem; font-weight:600;"></div>
+    <div class="form-actions">
+        <button type="button" class="btn-primary" onclick="submitRestock()">Update Stock</button>
+        <a href="{{ url_for('inventory_page') }}" class="btn-secondary">Cancel</a>
+    </div>
+</div>
+
+<!-- New product / edit form -->
 <form id="productForm" {% if product_id %}data-product-id="{{ product_id }}"{% endif %}>
     <input type="hidden" id="productId" value="{{ product_id or '' }}">
     
@@ -20,7 +52,7 @@
     
     <div class="form-group">
         <label for="category">Category *</label>
-        <input type="text" id="category" required placeholder="e.g., Electronics, Clothing">
+        <input type="text" id="category" required placeholder="e.g., Bag, Shoe">
     </div>
     
     <div class="form-row">
