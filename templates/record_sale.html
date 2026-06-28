@@ -7,40 +7,65 @@
 
 <form id="saleForm">
     <div class="form-group">
-        <label for="productSelect">Select Product *</label>
-        <select id="productSelect" required>
+        <label for="productSelect">Select Product</label>
+        <select id="productSelect">
             <option value="">-- Choose a product --</option>
         </select>
         <small id="stockInfo" class="stock-info"></small>
     </div>
     
     <div class="form-group">
-        <label for="quantitySold">Quantity Sold *</label>
-        <input type="number" id="quantitySold" min="1" required>
+        <label for="quantitySold">Quantity</label>
+        <input type="number" id="quantitySold" min="1">
+    </div>
+
+    <div class="form-group">
+        <button type="button" class="btn-primary" onclick="addItemToCart()">+ Add to Cart</button>
+    </div>
+
+    <!-- Cart table — hidden until items are added -->
+    <div id="cartSection" style="display:none;">
+        <h3>Items in this Sale</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Unit Price</th>
+                    <th>Subtotal</th>
+                    <th>Remove</th>
+                </tr>
+            </thead>
+            <tbody id="cartBody"></tbody>
+        </table>
     </div>
     
     <div class="form-group">
         <label for="paymentMethod">Payment Method *</label>
-        <select id="paymentMethod" required>
+        <select id="paymentMethod" onchange="onPaymentMethodChange()">
             <option value="">-- Select payment method --</option>
         </select>
     </div>
     
     <div class="form-group" id="paybillGroup" style="display:none;">
-        <label for="paybillSelect">Paybill</label>
+        <label for="paybillSelect">Mpesa Business Number *</label>
         <select id="paybillSelect">
-            <option value="">-- Select paybill --</option>
+            <option value="">-- Select business number --</option>
         </select>
+        <small id="paybillHint" class="stock-info"></small>
     </div>
     
     <div class="sale-preview" id="salePreview">
         <h3>Sale Preview</h3>
-        <p>Revenue: <span id="previewRevenue">$0.00</span></p>
-        <p>Profit: <span id="previewProfit">$0.00</span></p>
+        <p>Revenue: <span id="previewRevenue">KSh0.00</span></p>
+        <p>Profit: <span id="previewProfit">KSh0.00</span></p>
     </div>
+
+    <div id="saleError" style="display:none; color:#e74c3c; margin-bottom:1rem; font-weight:600;"></div>
     
     <div class="form-actions">
         <button type="submit" class="btn-primary">Complete Sale</button>
+        <button type="button" class="btn-secondary" onclick="clearCart()">Clear</button>
     </div>
 </form>
 {% endblock %}
