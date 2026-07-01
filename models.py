@@ -14,6 +14,7 @@ class Product(db.Model):
     quantity_in_stock = db.Column(db.Integer, nullable=False, default=0)
     low_stock_threshold = db.Column(db.Integer, nullable=False, default=5)
     image_path = db.Column(db.String(500))
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -28,6 +29,7 @@ class Product(db.Model):
             'quantity_in_stock': self.quantity_in_stock,
             'low_stock_threshold': self.low_stock_threshold,
             'image_path': self.image_path,
+            'is_active': self.is_active,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -74,7 +76,7 @@ class Sale(db.Model):
     payment_method_id = db.Column(db.Integer, db.ForeignKey('payment_methods.payment_method_id'), nullable=False)
     paybill_id = db.Column(db.Integer, db.ForeignKey('paybills.paybill_id'), nullable=True)
     sale_date = db.Column(db.DateTime, default=datetime.utcnow)
-    product = db.relationship('Product', backref='sales')
+    product = db.relationship('Product', backref=db.backref('sales', passive_deletes=True))
     payment_method = db.relationship('PaymentMethod', backref='sales')
     paybill = db.relationship('Paybill', backref='sales')
     

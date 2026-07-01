@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<h1>⚙️ Settings</h1>
+
+<!-- ── Payment Methods ── -->
+<div class="settings-section">
+    <div class="settings-header">
+        <h2>💳 Payment Methods</h2>
+        <button class="btn-primary" onclick="showAddMethodForm()">+ Add Method</button>
+    </div>
+
+    <!-- Add method form (hidden by default) -->
+    <div id="addMethodForm" style="display:none;" class="inline-form">
+        <input type="text" id="newMethodName" placeholder="e.g. Bank Transfer">
+        <button class="btn-primary" onclick="addPaymentMethod()">Save</button>
+        <button class="btn-secondary" onclick="hideAddMethodForm()">Cancel</button>
+        <div id="methodError" style="display:none; color:#e74c3c; margin-top:0.5rem; font-size:0.9rem;"></div>
+    </div>
+
+    <table id="methodsTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Method Name</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="methodsBody"></tbody>
+    </table>
+</div>
+
+<!-- ── Mpesa Paybills ── -->
+<div class="settings-section" id="paybillSection" style="display:none;">
+    <div class="settings-header">
+        <h2>📱 Mpesa Business Numbers</h2>
+        <button class="btn-primary" onclick="showAddPaybillForm()">+ Add Paybill</button>
+    </div>
+
+    <!-- Add paybill form (hidden by default) -->
+    <div id="addPaybillForm" style="display:none;" class="inline-form">
+        <input type="text" id="newPaybillName" placeholder="Business name e.g. Shop Till">
+        <input type="text" id="newPaybillNumber" placeholder="Paybill/Till number">
+        <button class="btn-primary" onclick="addPaybill()">Save</button>
+        <button class="btn-secondary" onclick="hideAddPaybillForm()">Cancel</button>
+        <div id="paybillError" style="display:none; color:#e74c3c; margin-top:0.5rem; font-size:0.9rem;"></div>
+    </div>
+
+    <table id="paybillsTable">
+        <thead>
+            <tr>
+                <th>Business Name</th>
+                <th>Number</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="paybillsBody"></tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

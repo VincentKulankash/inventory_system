@@ -24,7 +24,7 @@ def health():
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
     """Return every distinct category already in the products table."""
-    rows = db.session.query(Product.category).distinct().order_by(Product.category).all()
+    rows = db.session.query(Product.category).filter(Product.is_active == True).distinct().order_by(Product.category).all()
     categories = [r[0] for r in rows]
     return jsonify(categories)
 
@@ -49,9 +49,13 @@ def products():
         db.session.commit()
         return jsonify(new_product.to_dict()), 201
 
-    # Optional ?category= filter for grouped search
+    # ?show_discontinued=true includes discontinued products (inventory page toggle)
+    show_discontinued = request.args.get('show_discontinued', 'false').lower() == 'true'
     category_filter = request.args.get('category', '').strip()
+
     query = Product.query
+    if not show_discontinued:
+        query = query.filter(Product.is_active == True)
     if category_filter:
         query = query.filter(Product.category.ilike(f'%{category_filter}%'))
     return jsonify([p.to_dict() for p in query.all()])
@@ -77,10 +81,34 @@ def product_detail(product_id):
         return jsonify(product.to_dict())
 
     elif request.method == 'DELETE':
+        # Only allow deleting products with no sales history
+        if product.sales:
+            return jsonify({
+                'error': f'Cannot delete "{product.product_name}" — it has sales records attached.'
+            }), 409
         db.session.delete(product)
         db.session.commit()
         return jsonify({'message': 'Product deleted'}), 200
 
+
+
+# ─────────────────────────────────────────
+# DISCONTINUE / RESTORE
+# ─────────────────────────────────────────
+@app.route('/api/products/<int:product_id>/discontinue', methods=['PUT'])
+def discontinue_product(product_id):
+    product = Product.query.get_or_404(product_id)
+    product.is_active = False
+    db.session.commit()
+    return jsonify({'message': f'"{product.product_name}" has been discontinued.', 'product': product.to_dict()})
+
+
+@app.route('/api/products/<int:product_id>/restore', methods=['PUT'])
+def restore_product(product_id):
+    product = Product.query.get_or_404(product_id)
+    product.is_active = True
+    db.session.commit()
+    return jsonify({'message': f'"{product.product_name}" has been restored.', 'product': product.to_dict()})
 # ─────────────────────────────────────────
 # SALES
 # ─────────────────────────────────────────
@@ -597,6 +625,31 @@ def daily_report_page():
 @app.route('/reports')
 def reports_page():
     return render_template('reports.html')
+
+
+
+@app.route('/api/payment-methods/<int:method_id>', methods=['DELETE'])
+def delete_payment_method(method_id):
+    method = PaymentMethod.query.get_or_404(method_id)
+    if Sale.query.filter_by(payment_method_id=method_id).first():
+        return jsonify({'error': f'Cannot delete "{method.method_name}" — it has sales records attached.'}), 409
+    Paybill.query.filter_by(payment_method_id=method_id).delete()
+    db.session.delete(method)
+    db.session.commit()
+    return jsonify({'message': f'"{method.method_name}" deleted.'}), 200
+
+
+@app.route('/api/paybills/<int:paybill_id>', methods=['DELETE'])
+def delete_paybill(paybill_id):
+    paybill = Paybill.query.get_or_404(paybill_id)
+    db.session.delete(paybill)
+    db.session.commit()
+    return jsonify({'message': f'"{paybill.paybill_name}" removed.'}), 200
+
+
+@app.route('/settings')
+def settings_page():
+    return render_template('settings.html')
 
 if __name__ == '__main__':
     app.run(debug=True)

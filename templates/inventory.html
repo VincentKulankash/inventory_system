@@ -7,10 +7,12 @@
 
 <div class="filters">
     <input type="text" id="searchInput" placeholder="Search by product name..." oninput="filterProducts()">
-    <!-- Type-to-search category with autocomplete -->
     <input type="text" id="categoryFilter" list="categoryOptions"
            placeholder="Filter by category..." oninput="filterProducts()">
     <datalist id="categoryOptions"></datalist>
+    <button id="toggleDiscontinuedBtn" class="btn-secondary" onclick="toggleDiscontinued()">
+        👁 Show Discontinued
+    </button>
 </div>
 
 <table id="inventoryTable">
