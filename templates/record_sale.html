@@ -7,7 +7,6 @@
 
 <form id="saleForm">
 
-    <!-- ── Category filter ── -->
     <div class="form-group">
         <label for="categorySearch">Filter by Category</label>
         <input type="text" id="categorySearch" list="categoryFilterOptions"
@@ -16,16 +15,23 @@
         <datalist id="categoryFilterOptions"></datalist>
     </div>
 
-    <!-- ── Product search with autocomplete ── -->
     <div class="form-group">
         <label for="productSearch">Search Product</label>
         <input type="text" id="productSearch" list="productOptions"
                placeholder="Type product name..."
                oninput="onProductSearch()" autocomplete="off">
         <datalist id="productOptions"></datalist>
-        <!-- Hidden select keeps the actual product_id -->
         <input type="hidden" id="selectedProductId">
         <small id="stockInfo" class="stock-info"></small>
+    </div>
+
+    <!-- Variant selector — hidden until a variant product is selected -->
+    <div class="form-group" id="variantGroup" style="display:none;">
+        <label for="variantSelect">Select Variant *</label>
+        <select id="variantSelect">
+            <option value="">-- Select variant --</option>
+        </select>
+        <small class="stock-info">This product has variants. Please select one before adding to cart.</small>
     </div>
 
     <div class="form-group">

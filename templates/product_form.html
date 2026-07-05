@@ -51,33 +51,42 @@
 
     <div class="form-group">
         <label for="category">Category *</label>
-        <!-- text input + datalist gives a free-type field with autocomplete suggestions -->
         <input type="text" id="category" list="categoryOptions" required
                placeholder="Type or choose an existing category">
         <datalist id="categoryOptions"></datalist>
         <small class="stock-info">Start typing to see existing categories, or enter a new one.</small>
     </div>
 
-    <div class="form-row">
-        <div class="form-group">
-            <label for="buyingPrice">Buying Price *</label>
-            <input type="number" id="buyingPrice" step="0.01" min="0" required>
+    <!-- Price and stock fields — hidden for variant products -->
+    <div id="priceStockSection">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="buyingPrice">Buying Price *</label>
+                <input type="number" id="buyingPrice" step="0.01" min="0">
+            </div>
+            <div class="form-group">
+                <label for="sellingPrice">Selling Price *</label>
+                <input type="number" id="sellingPrice" step="0.01" min="0">
+            </div>
         </div>
-        <div class="form-group">
-            <label for="sellingPrice">Selling Price *</label>
-            <input type="number" id="sellingPrice" step="0.01" min="0" required>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="quantityInStock">Quantity in Stock *</label>
+                <input type="number" id="quantityInStock" min="0">
+            </div>
+            <div class="form-group">
+                <label for="lowStockThreshold">Low Stock Alert Threshold</label>
+                <input type="number" id="lowStockThreshold" min="1" value="5">
+            </div>
         </div>
     </div>
 
-    <div class="form-row">
-        <div class="form-group">
-            <label for="quantityInStock">Quantity in Stock *</label>
-            <input type="number" id="quantityInStock" min="0" required>
-        </div>
-        <div class="form-group">
-            <label for="lowStockThreshold">Low Stock Alert Threshold</label>
-            <input type="number" id="lowStockThreshold" min="1" value="5">
-        </div>
+    <!-- Notice shown when product has variants -->
+    <div id="variantPriceNotice" style="display:none; background:#fff3cd; border:1px solid #ffc107;
+         border-radius:6px; padding:1rem; margin-bottom:1.5rem; color:#856404; font-size:0.9rem;">
+        ⚠️ This product has variants. Prices and stock are managed per variant below.
+        The product-level price and stock fields are disabled.
     </div>
 
     <div class="form-actions">
@@ -85,6 +94,76 @@
         <a href="{{ url_for('inventory_page') }}" class="btn-secondary">Cancel</a>
     </div>
 </form>
+
+<!-- ── VARIANTS SECTION — only shown when editing an existing product ── -->
+{% if product_id %}
+<div id="variantsSection" style="margin-top:2rem;">
+    <h2>📦 Product Variants</h2>
+    <p class="stock-info" style="margin-bottom:1rem;">
+        Add size, colour, and material variants. Each variant has its own price and stock count.
+        If you add at least one variant, the product-level price and stock are disabled.
+    </p>
+
+    <!-- Existing variants table -->
+    <div id="variantsTableWrapper">
+        <table id="variantsTable">
+            <thead>
+                <tr>
+                    <th>Size</th>
+                    <th>Colour</th>
+                    <th>Material</th>
+                    <th>Buying Price</th>
+                    <th>Selling Price</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="variantsBody"></tbody>
+        </table>
+    </div>
+
+    <!-- Add variant inline form -->
+    <h3 style="margin-top:1.5rem;">➕ Add New Variant</h3>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Size</label>
+            <input type="text" id="vSize" placeholder="e.g. 28, S, M, 42">
+        </div>
+        <div class="form-group">
+            <label>Colour</label>
+            <input type="text" id="vColor" placeholder="e.g. Blue, Black">
+        </div>
+        <div class="form-group">
+            <label>Material</label>
+            <input type="text" id="vMaterial" placeholder="e.g. Denim, Cotton">
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Buying Price (KSh) *</label>
+            <input type="number" id="vBuyingPrice" step="0.01" min="0" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label>Selling Price (KSh) *</label>
+            <input type="number" id="vSellingPrice" step="0.01" min="0" placeholder="0.00">
+        </div>
+        <div class="form-group">
+            <label>Quantity in Stock *</label>
+            <input type="number" id="vQuantity" min="0" placeholder="0">
+        </div>
+        <div class="form-group">
+            <label>Low Stock Threshold</label>
+            <input type="number" id="vThreshold" min="1" value="5">
+        </div>
+    </div>
+
+    <div id="variantError" style="display:none; color:#e74c3c; margin-bottom:1rem; font-weight:600;"></div>
+
+    <button type="button" class="btn-primary" onclick="addVariant()">Save Variant</button>
+</div>
+{% endif %}
+
 {% endblock %}
 
 {% block scripts %}

@@ -1,10 +1,10 @@
 const API_BASE = '/api';
 
-let productsList = [];        // full list from API
-let filteredProducts = [];    // after category filter
+let productsList       = [];
+let filteredProducts   = [];
 let paymentMethodsList = [];
-let paybillsList = [];
-let cart = [];
+let paybillsList       = [];
+let cart               = [];
 
 // ── INIT ──
 document.addEventListener('DOMContentLoaded', loadData);
@@ -16,7 +16,7 @@ async function loadData() {
         productsList = await productsRes.json();
         filteredProducts = [...productsList];
 
-        // Categories — populate category datalist
+        // Category datalist
         const cats = [...new Set(productsList.map(p => p.category))].sort();
         const catDL = document.getElementById('categoryFilterOptions');
         catDL.innerHTML = '';
@@ -26,7 +26,6 @@ async function loadData() {
             catDL.appendChild(opt);
         });
 
-        // Populate initial product datalist
         rebuildProductDatalist(productsList);
 
         // Payment methods
@@ -54,16 +53,13 @@ async function loadData() {
 // ── CATEGORY FILTER ──
 function onCategoryFilter() {
     const cat = document.getElementById('categorySearch').value.trim().toLowerCase();
-
     filteredProducts = cat
         ? productsList.filter(p => p.category.toLowerCase().includes(cat))
         : [...productsList];
-
-    // Clear any selected product since the list changed
     document.getElementById('productSearch').value = '';
     document.getElementById('selectedProductId').value = '';
     document.getElementById('stockInfo').textContent = '';
-
+    hideVariantSelector();
     rebuildProductDatalist(filteredProducts);
 }
 
@@ -73,26 +69,35 @@ function rebuildProductDatalist(list) {
     dl.innerHTML = '';
     list.forEach(p => {
         const opt = document.createElement('option');
-        // Value is what shows in the input; we resolve the ID on selection
         opt.value = p.product_name;
-        opt.dataset.id = p.product_id;
         dl.appendChild(opt);
     });
 }
 
-// ── PRODUCT SEARCH / SELECTION ──
-function onProductSearch() {
+// ── PRODUCT SEARCH ──
+async function onProductSearch() {
     const typed = document.getElementById('productSearch').value.trim();
-
-    // Find an exact match in the current filtered list
     const match = filteredProducts.find(
         p => p.product_name.toLowerCase() === typed.toLowerCase()
     );
 
+    hideVariantSelector();
+
     if (match) {
         document.getElementById('selectedProductId').value = match.product_id;
         document.getElementById('stockInfo').textContent =
-            `Available stock: ${match.quantity_in_stock} units  |  Price: KSh${parseFloat(match.selling_price).toFixed(2)}`;
+            `Price: KSh${parseFloat(match.selling_price).toFixed(2)}  |  Stock: ${match.quantity_in_stock}`;
+
+        // Check if this product has variants
+        try {
+            const res = await fetch(`${API_BASE}/products/${match.product_id}/variants`);
+            const variants = await res.json();
+            if (variants.length > 0) {
+                showVariantSelector(variants, match);
+            }
+        } catch (err) {
+            console.error('Error fetching variants:', err);
+        }
     } else {
         document.getElementById('selectedProductId').value = '';
         document.getElementById('stockInfo').textContent = '';
@@ -101,10 +106,50 @@ function onProductSearch() {
     updatePreview();
 }
 
+// ── VARIANT SELECTOR ──
+function showVariantSelector(variants, product) {
+    const group = document.getElementById('variantGroup');
+    const select = document.getElementById('variantSelect');
+
+    select.innerHTML = '<option value="">-- Select variant --</option>';
+    variants.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.variant_id;
+        opt.textContent = `${v.label}  (Stock: ${v.quantity_in_stock}  |  KSh${v.selling_price.toFixed(2)})`;
+        opt.dataset.stock         = v.quantity_in_stock;
+        opt.dataset.sellingPrice  = v.selling_price;
+        opt.dataset.buyingPrice   = v.buying_price;
+        opt.dataset.label         = v.label;
+        select.appendChild(opt);
+    });
+
+    // Update stock info when variant is chosen
+    select.onchange = function() {
+        const vOpt = this.options[this.selectedIndex];
+        if (vOpt.value) {
+            document.getElementById('stockInfo').textContent =
+                `${vOpt.dataset.label}  |  Stock: ${vOpt.dataset.stock}  |  KSh${parseFloat(vOpt.dataset.sellingPrice).toFixed(2)}`;
+        }
+        updatePreview();
+    };
+
+    group.style.display = 'block';
+}
+
+function hideVariantSelector() {
+    const group = document.getElementById('variantGroup');
+    if (group) {
+        group.style.display = 'none';
+        document.getElementById('variantSelect').value = '';
+    }
+}
+
 // ── CART ──
 function addItemToCart() {
     const productId = parseInt(document.getElementById('selectedProductId').value);
-    const qty = parseInt(document.getElementById('quantitySold').value);
+    const qty       = parseInt(document.getElementById('quantitySold').value);
+    const variantSelect = document.getElementById('variantSelect');
+    const variantId = variantSelect && variantSelect.value ? parseInt(variantSelect.value) : null;
 
     if (!productId) { showError('Please select a valid product from the list.'); return; }
     if (!qty || qty <= 0) { showError('Please enter a valid quantity.'); return; }
@@ -113,12 +158,38 @@ function addItemToCart() {
                  || productsList.find(p => p.product_id === productId);
     if (!product) { showError('Product not found. Please select again.'); return; }
 
-    const existing = cart.find(i => i.productId === productId);
+    // If product has variants, a variant must be selected
+    const variantGroup = document.getElementById('variantGroup');
+    const variantVisible = variantGroup && variantGroup.style.display !== 'none';
+    if (variantVisible && !variantId) {
+        showError('This product has variants. Please select a specific variant.');
+        return;
+    }
+
+    // Get price and stock from variant or product
+    let sellingPrice, buyingPrice, availableStock, displayName;
+
+    if (variantId) {
+        const vOpt = variantSelect.options[variantSelect.selectedIndex];
+        sellingPrice   = parseFloat(vOpt.dataset.sellingPrice);
+        buyingPrice    = parseFloat(vOpt.dataset.buyingPrice);
+        availableStock = parseInt(vOpt.dataset.stock);
+        displayName    = `${product.product_name} (${vOpt.dataset.label})`;
+    } else {
+        sellingPrice   = parseFloat(product.selling_price);
+        buyingPrice    = parseFloat(product.buying_price);
+        availableStock = product.quantity_in_stock;
+        displayName    = product.product_name;
+    }
+
+    // Check stock accounting for cart
+    const cartKey = variantId ? `v_${variantId}` : `p_${productId}`;
+    const existing = cart.find(i => i.cartKey === cartKey);
     const alreadyInCart = existing ? existing.quantity : 0;
-    const remaining = product.quantity_in_stock - alreadyInCart;
+    const remaining = availableStock - alreadyInCart;
 
     if (qty > remaining) {
-        showError(`Only ${remaining} unit(s) available for ${product.product_name}.`);
+        showError(`Only ${remaining} unit(s) available for ${displayName}.`);
         return;
     }
 
@@ -128,27 +199,33 @@ function addItemToCart() {
         existing.quantity += qty;
     } else {
         cart.push({
-            productId: product.product_id,
-            name: product.product_name,
-            sellingPrice: parseFloat(product.selling_price),
-            buyingPrice: parseFloat(product.buying_price),
-            stock: product.quantity_in_stock,
+            cartKey,
+            productId,
+            variantId,
+            name: displayName,
+            sellingPrice,
+            buyingPrice,
+            stock: availableStock,
             quantity: qty
         });
     }
 
-    // Reset product selection
+    // Reset selectors
     document.getElementById('productSearch').value = '';
     document.getElementById('selectedProductId').value = '';
     document.getElementById('quantitySold').value = '';
     document.getElementById('stockInfo').textContent = '';
+    hideVariantSelector();
+    document.getElementById('categorySearch').value = '';
+    filteredProducts = [...productsList];
+    rebuildProductDatalist(productsList);
 
     renderCart();
     updatePreview();
 }
 
-function removeFromCart(productId) {
-    cart = cart.filter(i => i.productId !== productId);
+function removeFromCart(cartKey) {
+    cart = cart.filter(i => i.cartKey !== cartKey);
     renderCart();
     updatePreview();
 }
@@ -162,7 +239,7 @@ function clearCart() {
 
 function renderCart() {
     const cartSection = document.getElementById('cartSection');
-    const cartBody = document.getElementById('cartBody');
+    const cartBody    = document.getElementById('cartBody');
     if (cart.length === 0) { cartSection.style.display = 'none'; return; }
 
     cartSection.style.display = 'block';
@@ -175,7 +252,8 @@ function renderCart() {
             <td>${item.quantity}</td>
             <td>KSh${item.sellingPrice.toFixed(2)}</td>
             <td>KSh${subtotal.toFixed(2)}</td>
-            <td><button type="button" class="danger" onclick="removeFromCart(${item.productId})">Remove</button></td>
+            <td><button type="button" class="danger"
+                onclick="removeFromCart('${item.cartKey}')">Remove</button></td>
         `;
         cartBody.appendChild(tr);
     });
@@ -186,19 +264,19 @@ function updatePreview() {
     let totalRevenue = 0, totalProfit = 0;
     cart.forEach(item => {
         totalRevenue += item.quantity * item.sellingPrice;
-        totalProfit += item.quantity * (item.sellingPrice - item.buyingPrice);
+        totalProfit  += item.quantity * (item.sellingPrice - item.buyingPrice);
     });
     document.getElementById('previewRevenue').textContent = `KSh${totalRevenue.toFixed(2)}`;
-    document.getElementById('previewProfit').textContent = `KSh${totalProfit.toFixed(2)}`;
+    document.getElementById('previewProfit').textContent  = `KSh${totalProfit.toFixed(2)}`;
 }
 
 // ── PAYMENT METHOD ──
 function onPaymentMethodChange() {
     const select = document.getElementById('paymentMethod');
-    const opt = select.options[select.selectedIndex];
-    const paybillGroup = document.getElementById('paybillGroup');
+    const opt    = select.options[select.selectedIndex];
+    const paybillGroup  = document.getElementById('paybillGroup');
     const paybillSelect = document.getElementById('paybillSelect');
-    const paybillHint = document.getElementById('paybillHint');
+    const paybillHint   = document.getElementById('paybillHint');
 
     if (opt.dataset.name && opt.dataset.name.toLowerCase() === 'mpesa') {
         paybillGroup.style.display = 'block';
@@ -245,15 +323,18 @@ document.getElementById('saleForm').addEventListener('submit', async (e) => {
 
     try {
         for (const item of cart) {
+            const body = {
+                product_id:         item.productId,
+                quantity_sold:      item.quantity,
+                payment_method_id:  paymentMethodId,
+                paybill_id:         paybillId
+            };
+            if (item.variantId) body.variant_id = item.variantId;
+
             const res = await fetch(`${API_BASE}/sales`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    product_id: item.productId,
-                    quantity_sold: item.quantity,
-                    payment_method_id: paymentMethodId,
-                    paybill_id: paybillId
-                })
+                body: JSON.stringify(body)
             });
             const result = await res.json();
             if (!res.ok) throw new Error(result.error || `Failed to record sale for ${item.name}`);

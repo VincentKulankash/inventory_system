@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request, render_template, redirect, url_for, send_file
 from config import Config
-from models import db, Product, Sale, PaymentMethod, Paybill
+from models import db, Product, Sale, PaymentMethod, Paybill, ProductVariant
 from flask_migrate import Migrate
 from sqlalchemy import func
 from datetime import datetime, date
@@ -19,14 +19,12 @@ def health():
     return jsonify({'status': 'healthy'})
 
 # ─────────────────────────────────────────
-# CATEGORIES  (new endpoint)
+# CATEGORIES
 # ─────────────────────────────────────────
 @app.route('/api/categories', methods=['GET'])
 def get_categories():
-    """Return every distinct category already in the products table."""
     rows = db.session.query(Product.category).filter(Product.is_active == True).distinct().order_by(Product.category).all()
-    categories = [r[0] for r in rows]
-    return jsonify(categories)
+    return jsonify([r[0] for r in rows])
 
 # ─────────────────────────────────────────
 # PRODUCTS
@@ -49,7 +47,6 @@ def products():
         db.session.commit()
         return jsonify(new_product.to_dict()), 201
 
-    # ?show_discontinued=true includes discontinued products (inventory page toggle)
     show_discontinued = request.args.get('show_discontinued', 'false').lower() == 'true'
     category_filter = request.args.get('category', '').strip()
 
@@ -81,7 +78,6 @@ def product_detail(product_id):
         return jsonify(product.to_dict())
 
     elif request.method == 'DELETE':
-        # Only allow deleting products with no sales history
         if product.sales:
             return jsonify({
                 'error': f'Cannot delete "{product.product_name}" — it has sales records attached.'
@@ -89,7 +85,6 @@ def product_detail(product_id):
         db.session.delete(product)
         db.session.commit()
         return jsonify({'message': 'Product deleted'}), 200
-
 
 
 # ─────────────────────────────────────────
@@ -109,6 +104,70 @@ def restore_product(product_id):
     product.is_active = True
     db.session.commit()
     return jsonify({'message': f'"{product.product_name}" has been restored.', 'product': product.to_dict()})
+
+
+# ─────────────────────────────────────────
+# PRODUCT VARIANTS
+# ─────────────────────────────────────────
+@app.route('/api/products/<int:product_id>/variants', methods=['GET', 'POST'])
+def product_variants(product_id):
+    product = Product.query.get_or_404(product_id)
+
+    if request.method == 'POST':
+        data = request.get_json()
+        variant = ProductVariant(
+            product_id=product_id,
+            size=data.get('size'),
+            color=data.get('color'),
+            material=data.get('material'),
+            selling_price=data['selling_price'],
+            buying_price=data['buying_price'],
+            quantity_in_stock=data.get('quantity_in_stock', 0),
+            low_stock_threshold=data.get('low_stock_threshold', 5)
+        )
+        db.session.add(variant)
+        db.session.commit()
+        return jsonify(variant.to_dict()), 201
+
+    variants = ProductVariant.query.filter_by(product_id=product_id, is_active=True).all()
+    return jsonify([v.to_dict() for v in variants])
+
+
+@app.route('/api/variants/<int:variant_id>', methods=['GET', 'PUT'])
+def variant_detail(variant_id):
+    variant = ProductVariant.query.get_or_404(variant_id)
+
+    if request.method == 'GET':
+        return jsonify(variant.to_dict())
+
+    data = request.get_json()
+    variant.size                = data.get('size', variant.size)
+    variant.color               = data.get('color', variant.color)
+    variant.material            = data.get('material', variant.material)
+    variant.selling_price       = data.get('selling_price', variant.selling_price)
+    variant.buying_price        = data.get('buying_price', variant.buying_price)
+    variant.quantity_in_stock   = data.get('quantity_in_stock', variant.quantity_in_stock)
+    variant.low_stock_threshold = data.get('low_stock_threshold', variant.low_stock_threshold)
+    db.session.commit()
+    return jsonify(variant.to_dict())
+
+
+@app.route('/api/variants/<int:variant_id>/discontinue', methods=['PUT'])
+def discontinue_variant(variant_id):
+    variant = ProductVariant.query.get_or_404(variant_id)
+    variant.is_active = False
+    db.session.commit()
+    return jsonify({'message': 'Variant discontinued.', 'variant': variant.to_dict()})
+
+
+@app.route('/api/variants/<int:variant_id>/restore', methods=['PUT'])
+def restore_variant(variant_id):
+    variant = ProductVariant.query.get_or_404(variant_id)
+    variant.is_active = True
+    db.session.commit()
+    return jsonify({'message': 'Variant restored.', 'variant': variant.to_dict()})
+
+
 # ─────────────────────────────────────────
 # SALES
 # ─────────────────────────────────────────
@@ -118,18 +177,31 @@ def sales():
         data = request.get_json()
         product = Product.query.get_or_404(data['product_id'])
 
-        if product.quantity_in_stock < data['quantity_sold']:
-            return jsonify({'error': 'Insufficient stock'}), 400
+        quantity   = data['quantity_sold']
+        variant_id = data.get('variant_id')
+        variant    = None
 
-        quantity = data['quantity_sold']
-        selling_price = float(product.selling_price)
-        buying_price = float(product.buying_price)
+        if variant_id:
+            variant = ProductVariant.query.get_or_404(variant_id)
+            if variant.product_id != product.product_id:
+                return jsonify({'error': 'Variant does not belong to this product.'}), 400
+            if variant.quantity_in_stock < quantity:
+                return jsonify({'error': 'Insufficient variant stock.'}), 400
+            selling_price = float(variant.selling_price)
+            buying_price  = float(variant.buying_price)
+        else:
+            if product.quantity_in_stock < quantity:
+                return jsonify({'error': 'Insufficient stock.'}), 400
+            selling_price = float(product.selling_price)
+            buying_price  = float(product.buying_price)
+
         total_revenue = quantity * selling_price
-        total_cost = quantity * buying_price
-        profit = total_revenue - total_cost
+        total_cost    = quantity * buying_price
+        profit        = total_revenue - total_cost
 
         new_sale = Sale(
             product_id=data['product_id'],
+            variant_id=variant_id,
             quantity_sold=quantity,
             selling_price_at_sale=selling_price,
             buying_price_at_sale=buying_price,
@@ -139,13 +211,19 @@ def sales():
             payment_method_id=data['payment_method_id'],
             paybill_id=data.get('paybill_id')
         )
-        product.quantity_in_stock -= quantity
+
+        if variant:
+            variant.quantity_in_stock -= quantity
+        else:
+            product.quantity_in_stock -= quantity
+
         db.session.add(new_sale)
         db.session.commit()
         return jsonify(new_sale.to_dict()), 201
 
     sales_list = Sale.query.all()
     return jsonify([s.to_dict() for s in sales_list])
+
 
 # ─────────────────────────────────────────
 # REPORTS — overall summary
@@ -183,8 +261,9 @@ def reports():
         ]
     })
 
+
 # ─────────────────────────────────────────
-# REPORTS — date range  (new endpoint)
+# REPORTS — date range
 # ─────────────────────────────────────────
 @app.route('/api/reports/range', methods=['GET'])
 def range_report():
@@ -203,11 +282,10 @@ def range_report():
     if start_date > end_date:
         return jsonify({'error': 'Start date must be before end date.'}), 400
 
-    # Earliest sale date in the system
     earliest = db.session.query(func.min(func.date(Sale.sale_date))).scalar()
     if earliest and start_date < earliest:
         return jsonify({
-            'error': f"🕰️ That's before we opened our books! Our earliest record is {earliest}. Try a date from then onwards."
+            'error': f'Start date is before the earliest sale record in the system ({earliest}).'
         }), 400
 
     totals = db.session.query(
@@ -266,8 +344,9 @@ def range_report():
         ]
     })
 
+
 # ─────────────────────────────────────────
-# REPORTS — export PDF or Excel  (new endpoint)
+# REPORTS — export PDF or Excel
 # ─────────────────────────────────────────
 @app.route('/api/reports/export', methods=['GET'])
 def export_report():
@@ -275,7 +354,6 @@ def export_report():
     start_str = request.args.get('start')
     end_str = request.args.get('end')
 
-    # Build query — all sales or filtered range
     query = Sale.query.order_by(Sale.sale_date.asc())
     label = 'All Time'
     if start_str and end_str:
@@ -307,19 +385,17 @@ def _export_excel(sales_data, label):
     ws = wb.active
     ws.title = 'Sales Report'
 
-    # Title
-    ws.merge_cells('A1:J1')
+    ws.merge_cells('A1:K1')
     ws['A1'] = f'Sales Report — {label}'
     ws['A1'].font = Font(bold=True, size=14)
     ws['A1'].alignment = Alignment(horizontal='center')
 
-    ws.merge_cells('A2:J2')
+    ws.merge_cells('A2:K2')
     ws['A2'] = f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}'
     ws['A2'].alignment = Alignment(horizontal='center')
 
-    # Header row
-    headers = ['Sale ID', 'Date', 'Product', 'Qty', 'Unit Price', 'Buying Price',
-               'Revenue', 'Cost', 'Profit', 'Payment Method']
+    headers = ['Sale ID', 'Date', 'Product', 'Variant', 'Qty', 'Unit Price',
+               'Buying Price', 'Revenue', 'Cost', 'Profit', 'Payment Method']
     header_fill = PatternFill(start_color='2C3E50', end_color='2C3E50', fill_type='solid')
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=4, column=col, value=h)
@@ -327,32 +403,30 @@ def _export_excel(sales_data, label):
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal='center')
 
-    # Data rows
     total_revenue = total_cost = total_profit = 0
     for row_idx, s in enumerate(sales_data, 5):
         ws.cell(row=row_idx, column=1, value=s.sale_id)
         ws.cell(row=row_idx, column=2, value=s.sale_date.strftime('%Y-%m-%d %H:%M') if s.sale_date else '')
         ws.cell(row=row_idx, column=3, value=s.product.product_name if s.product else '')
-        ws.cell(row=row_idx, column=4, value=s.quantity_sold)
-        ws.cell(row=row_idx, column=5, value=float(s.selling_price_at_sale))
-        ws.cell(row=row_idx, column=6, value=float(s.buying_price_at_sale))
-        ws.cell(row=row_idx, column=7, value=float(s.total_revenue))
-        ws.cell(row=row_idx, column=8, value=float(s.total_cost))
-        ws.cell(row=row_idx, column=9, value=float(s.profit))
-        ws.cell(row=row_idx, column=10, value=s.payment_method.method_name if s.payment_method else '')
+        ws.cell(row=row_idx, column=4, value=s.variant._label() if s.variant else '')
+        ws.cell(row=row_idx, column=5, value=s.quantity_sold)
+        ws.cell(row=row_idx, column=6, value=float(s.selling_price_at_sale))
+        ws.cell(row=row_idx, column=7, value=float(s.buying_price_at_sale))
+        ws.cell(row=row_idx, column=8, value=float(s.total_revenue))
+        ws.cell(row=row_idx, column=9, value=float(s.total_cost))
+        ws.cell(row=row_idx, column=10, value=float(s.profit))
+        ws.cell(row=row_idx, column=11, value=s.payment_method.method_name if s.payment_method else '')
         total_revenue += float(s.total_revenue)
         total_cost += float(s.total_cost)
         total_profit += float(s.profit)
 
-    # Totals row
     total_row = len(sales_data) + 5
     ws.cell(row=total_row, column=3, value='TOTALS').font = Font(bold=True)
-    for col, val in [(7, total_revenue), (8, total_cost), (9, total_profit)]:
+    for col, val in [(8, total_revenue), (9, total_cost), (10, total_profit)]:
         cell = ws.cell(row=total_row, column=col, value=val)
         cell.font = Font(bold=True)
 
-    # Column widths
-    col_widths = [8, 18, 25, 6, 12, 14, 12, 12, 12, 16]
+    col_widths = [8, 18, 25, 20, 6, 12, 14, 12, 12, 12, 16]
     for i, w in enumerate(col_widths, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -360,7 +434,8 @@ def _export_excel(sales_data, label):
     wb.save(output)
     output.seek(0)
     filename = f'sales_report_{label.replace(" ", "_").replace(":", "")}.xlsx'
-    return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    return send_file(output,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=filename)
 
 
@@ -378,21 +453,22 @@ def _export_pdf(sales_data, label):
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('title', parent=styles['Title'], fontSize=16, spaceAfter=6)
-    sub_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=9, textColor=colors.grey, spaceAfter=12)
+    sub_style = ParagraphStyle('sub', parent=styles['Normal'], fontSize=9,
+                               textColor=colors.grey, spaceAfter=12)
 
     story = [
         Paragraph(f'Sales Report — {label}', title_style),
-        Paragraph(f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")} &nbsp;|&nbsp; Total records: {len(sales_data)}', sub_style),
+        Paragraph(f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")} | Total records: {len(sales_data)}', sub_style),
     ]
 
-    # Summary row
     total_revenue = sum(float(s.total_revenue) for s in sales_data)
-    total_cost = sum(float(s.total_cost) for s in sales_data)
-    total_profit = sum(float(s.profit) for s in sales_data)
+    total_cost    = sum(float(s.total_cost) for s in sales_data)
+    total_profit  = sum(float(s.profit) for s in sales_data)
 
     summary_data = [
         ['Total Revenue', 'Total Cost', 'Total Profit', 'Total Sales'],
-        [f'KSh{total_revenue:,.2f}', f'KSh{total_cost:,.2f}', f'KSh{total_profit:,.2f}', str(len(sales_data))]
+        [f'KSh{total_revenue:,.2f}', f'KSh{total_cost:,.2f}',
+         f'KSh{total_profit:,.2f}', str(len(sales_data))]
     ]
     summary_table = Table(summary_data, colWidths=[6*cm]*4)
     summary_table.setStyle(TableStyle([
@@ -404,19 +480,19 @@ def _export_pdf(sales_data, label):
         ('FONTNAME', (0,1), (-1,1), 'Helvetica-Bold'),
         ('FONTSIZE', (0,0), (-1,-1), 10),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.HexColor('#EBF5FB')]),
     ]))
     story.append(summary_table)
     story.append(Spacer(1, 0.4*cm))
 
-    # Sales table
-    headers = ['ID', 'Date & Time', 'Product', 'Qty', 'Unit Price', 'Revenue', 'Cost', 'Profit', 'Payment']
+    headers = ['ID', 'Date & Time', 'Product', 'Variant', 'Qty',
+               'Unit Price', 'Revenue', 'Cost', 'Profit', 'Payment']
     table_data = [headers]
     for s in sales_data:
         table_data.append([
             str(s.sale_id),
             s.sale_date.strftime('%Y-%m-%d %H:%M') if s.sale_date else '',
             s.product.product_name if s.product else '',
+            s.variant._label() if s.variant else '',
             str(s.quantity_sold),
             f'KSh{float(s.selling_price_at_sale):,.2f}',
             f'KSh{float(s.total_revenue):,.2f}',
@@ -425,7 +501,7 @@ def _export_pdf(sales_data, label):
             s.payment_method.method_name if s.payment_method else '',
         ])
 
-    col_widths = [1.2*cm, 3.5*cm, 5.5*cm, 1.2*cm, 3*cm, 3*cm, 3*cm, 3*cm, 3*cm]
+    col_widths = [1.2*cm, 3.5*cm, 4.5*cm, 3.5*cm, 1.2*cm, 3*cm, 3*cm, 3*cm, 3*cm, 3*cm]
     sales_table = Table(table_data, colWidths=col_widths, repeatRows=1)
     sales_table.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#34495E')),
@@ -444,7 +520,9 @@ def _export_pdf(sales_data, label):
     doc.build(story)
     output.seek(0)
     filename = f'sales_report_{label.replace(" ", "_").replace(":", "")}.pdf'
-    return send_file(output, mimetype='application/pdf', as_attachment=True, download_name=filename)
+    return send_file(output, mimetype='application/pdf',
+                     as_attachment=True, download_name=filename)
+
 
 # ─────────────────────────────────────────
 # REPORTS — daily / monthly / yearly
@@ -567,6 +645,7 @@ def yearly_report():
         ]
     })
 
+
 # ─────────────────────────────────────────
 # PAYMENT METHODS & PAYBILLS
 # ─────────────────────────────────────────
@@ -594,6 +673,26 @@ def paybills():
         db.session.commit()
         return jsonify(new_paybill.to_dict()), 201
     return jsonify([p.to_dict() for p in Paybill.query.all()])
+
+
+@app.route('/api/payment-methods/<int:method_id>', methods=['DELETE'])
+def delete_payment_method(method_id):
+    method = PaymentMethod.query.get_or_404(method_id)
+    if Sale.query.filter_by(payment_method_id=method_id).first():
+        return jsonify({'error': f'Cannot delete "{method.method_name}" — it has sales records attached.'}), 409
+    Paybill.query.filter_by(payment_method_id=method_id).delete()
+    db.session.delete(method)
+    db.session.commit()
+    return jsonify({'message': f'"{method.method_name}" deleted.'}), 200
+
+
+@app.route('/api/paybills/<int:paybill_id>', methods=['DELETE'])
+def delete_paybill(paybill_id):
+    paybill = Paybill.query.get_or_404(paybill_id)
+    db.session.delete(paybill)
+    db.session.commit()
+    return jsonify({'message': f'"{paybill.paybill_name}" removed.'}), 200
+
 
 # ─────────────────────────────────────────
 # PAGE ROUTES
@@ -626,30 +725,10 @@ def daily_report_page():
 def reports_page():
     return render_template('reports.html')
 
-
-
-@app.route('/api/payment-methods/<int:method_id>', methods=['DELETE'])
-def delete_payment_method(method_id):
-    method = PaymentMethod.query.get_or_404(method_id)
-    if Sale.query.filter_by(payment_method_id=method_id).first():
-        return jsonify({'error': f'Cannot delete "{method.method_name}" — it has sales records attached.'}), 409
-    Paybill.query.filter_by(payment_method_id=method_id).delete()
-    db.session.delete(method)
-    db.session.commit()
-    return jsonify({'message': f'"{method.method_name}" deleted.'}), 200
-
-
-@app.route('/api/paybills/<int:paybill_id>', methods=['DELETE'])
-def delete_paybill(paybill_id):
-    paybill = Paybill.query.get_or_404(paybill_id)
-    db.session.delete(paybill)
-    db.session.commit()
-    return jsonify({'message': f'"{paybill.paybill_name}" removed.'}), 200
-
-
 @app.route('/settings')
 def settings_page():
     return render_template('settings.html')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
