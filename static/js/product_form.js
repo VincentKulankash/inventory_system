@@ -25,16 +25,20 @@ function setMode(mode) {
 }
 
 // ── RESTOCK ──
+let restockProductsMap = {};
+
 async function loadProductsForRestock() {
     try {
         const res = await fetch(`${API_BASE}/products`);
         const products = await res.json();
+        restockProductsMap = {};
         const select = document.getElementById('restockSelect');
         select.innerHTML = '<option value="">-- Choose a product --</option>';
         products.forEach(p => {
+            restockProductsMap[p.product_id] = p;
             const opt = document.createElement('option');
             opt.value = p.product_id;
-            opt.textContent = p.product_name;
+            opt.textContent = p.product_name + (p.variants && p.variants.length > 0 ? ' (has variants)' : '');
             opt.dataset.stock = p.quantity_in_stock;
             select.appendChild(opt);
         });
@@ -47,6 +51,42 @@ function onRestockProductChange() {
     const select = document.getElementById('restockSelect');
     const opt = select.options[select.selectedIndex];
     const hint = document.getElementById('restockCurrentStock');
+    const variantGroup = document.getElementById('restockVariantGroup');
+    const variantSelect = document.getElementById('restockVariantSelect');
+    const variantHint = document.getElementById('restockVariantCurrentStock');
+
+    variantSelect.innerHTML = '<option value="">-- Choose a variant --</option>';
+    variantHint.textContent = '';
+
+    if (!opt.value) {
+        hint.textContent = '';
+        variantGroup.style.display = 'none';
+        return;
+    }
+
+    const product = restockProductsMap[opt.value];
+    const hasVariants = product && product.variants && product.variants.length > 0;
+
+    if (hasVariants) {
+        hint.textContent = 'This product has variants — choose one below to restock.';
+        product.variants.forEach(v => {
+            const vOpt = document.createElement('option');
+            vOpt.value = v.variant_id;
+            vOpt.textContent = `${v.label}  (Stock: ${v.quantity_in_stock})`;
+            vOpt.dataset.stock = v.quantity_in_stock;
+            variantSelect.appendChild(vOpt);
+        });
+        variantGroup.style.display = 'block';
+    } else {
+        hint.textContent = `Current stock: ${opt.dataset.stock} units`;
+        variantGroup.style.display = 'none';
+    }
+}
+
+function onRestockVariantChange() {
+    const select = document.getElementById('restockVariantSelect');
+    const opt = select.options[select.selectedIndex];
+    const hint = document.getElementById('restockVariantCurrentStock');
     hint.textContent = opt.value ? `Current stock: ${opt.dataset.stock} units` : '';
 }
 
@@ -65,6 +105,41 @@ async function submitRestock() {
     if (!qty || qty <= 0) {
         errorEl.textContent = 'Please enter a valid quantity.';
         errorEl.style.display = 'block';
+        return;
+    }
+
+    const product = restockProductsMap[opt.value];
+    const hasVariants = product && product.variants && product.variants.length > 0;
+
+    if (hasVariants) {
+        const variantSelect = document.getElementById('restockVariantSelect');
+        const variantOpt = variantSelect.options[variantSelect.selectedIndex];
+
+        if (!variantOpt.value) {
+            errorEl.textContent = 'This product has variants — please select which one to restock.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        const newStock = parseInt(variantOpt.dataset.stock) + qty;
+        try {
+            const res = await fetch(`${API_BASE}/variants/${variantOpt.value}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ quantity_in_stock: newStock })
+            });
+            const result = await res.json();
+            if (res.ok) {
+                alert(`Stock updated. ${opt.textContent.replace(' (has variants)', '')} — ${variantOpt.dataset.label || variantOpt.textContent} now has ${newStock} units.`);
+                window.location.href = '/inventory';
+            } else {
+                errorEl.textContent = 'Error: ' + JSON.stringify(result);
+                errorEl.style.display = 'block';
+            }
+        } catch (err) {
+            errorEl.textContent = 'Something went wrong. Please try again.';
+            errorEl.style.display = 'block';
+        }
         return;
     }
 
@@ -301,9 +376,9 @@ document.getElementById('productForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const productData = {
-        product_name: document.getElementById('productName').value,
-        description:  document.getElementById('description').value,
-        category:     document.getElementById('category').value,
+        product_name: document.getElementById('productName').value.trim(),
+        description:  document.getElementById('description').value.trim(),
+        category:     document.getElementById('category').value.trim(),
     };
 
     // Only include price and stock if not a variant product

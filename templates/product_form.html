@@ -24,6 +24,13 @@
         </select>
         <small id="restockCurrentStock" class="stock-info"></small>
     </div>
+    <div class="form-group" id="restockVariantGroup" style="display:none;">
+        <label for="restockVariantSelect">Select Variant to Restock *</label>
+        <select id="restockVariantSelect" onchange="onRestockVariantChange()">
+            <option value="">-- Choose a variant --</option>
+        </select>
+        <small id="restockVariantCurrentStock" class="stock-info"></small>
+    </div>
     <div class="form-group">
         <label for="restockQuantity">Quantity to Add *</label>
         <input type="number" id="restockQuantity" min="1" placeholder="e.g. 20">

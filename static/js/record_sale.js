@@ -78,7 +78,7 @@ function rebuildProductDatalist(list) {
 async function onProductSearch() {
     const typed = document.getElementById('productSearch').value.trim();
     const match = filteredProducts.find(
-        p => p.product_name.toLowerCase() === typed.toLowerCase()
+        p => p.product_name.trim().toLowerCase() === typed.toLowerCase()
     );
 
     hideVariantSelector();
